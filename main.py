@@ -283,10 +283,10 @@ if __name__ == '__main__':
                 )
                 processor = AutoProcessor.from_pretrained("/root/OpenEMMA/models/Qwen2.5-VL-3B-Instruct")
 
-                # model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                #     "Qwen/Qwen2.5-VL-3B-Instruct-AWQ", torch_dtype="auto", device_map="auto", attn_implementation="flash_attention_2"
-                # )
-                # processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct-AWQ")
+                model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                    "Qwen/Qwen2.5-VL-3B-Instruct-AWQ", torch_dtype="auto", device_map="auto", attn_implementation="flash_attention_2"
+                )
+                processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct-AWQ")
                 
                 tokenizer = None
                 qwen25_loaded = True
