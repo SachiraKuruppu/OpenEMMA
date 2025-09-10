@@ -9,7 +9,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-from openai import OpenAI
+from google import genai
+from google.genai import types
 from nuscenes import NuScenes
 from pyquaternion import Quaternion
 from scipy.integrate import cumulative_trapezoid
@@ -25,8 +26,12 @@ from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_S
 from llava.utils import disable_torch_init
 from llava.mm_utils import tokenizer_image_token, process_images, get_model_name_from_path
 from llava.conversation import conv_templates
+import time
 
-client = OpenAI(api_key="[your-openai-api-key]")
+# Initialize Gemini client with optional API key
+# You can either set GEMINI_API_KEY environment variable or pass it directly
+client = genai.Client(api_key="<GEMINI_API_KEY>")  # Replace with your actual API key
+# Or use environment variable: client = genai.Client()
 
 OBS_LEN = 10
 FUT_LEN = 10
@@ -134,30 +139,43 @@ def vlm_inference(text=None, images=None, sys_message=None, processor=None, mode
             return outputs
                     
         elif "gpt" in args.model_path:
-            PROMPT_MESSAGES = [
-                {
-                    "role": "user",
-                    "content": [
-                        *map(lambda x: {"image": x, "resize": 768}, images),
-                        text,
-                    ],
-                },
-            ]
+            # Convert base64 images to proper format for Gemini
+            image_parts = []
+            if isinstance(images, list):
+                for img_b64 in images:
+                    img_bytes = base64.b64decode(img_b64)
+                    image_parts.append(types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg'))
+            else:
+                # Single image
+                img_bytes = base64.b64decode(images)
+                image_parts.append(types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg'))
+            
+            # Create contents list with images and text (no system message here)
+            contents = []
+            contents.extend(image_parts)
+            contents.append(text)
+            
+            # Create config with system instruction if provided
+            config = None
             if sys_message is not None:
-                sys_message_dict = {
-                    "role": "system",
-                    "content": sys_message
-                }
-                PROMPT_MESSAGES.append(sys_message_dict)
-            params = {
-                "model": "gpt-4o-2024-11-20",
-                "messages": PROMPT_MESSAGES,
-                "max_tokens": 400,
-            }
-
-            result = client.chat.completions.create(**params)
-
-            return result.choices[0].message.content
+                config = types.GenerateContentConfig(
+                    system_instruction=sys_message
+                )
+            
+            response = None
+            while response is None:
+                try:
+                    response = client.models.generate_content(
+                        model="models/gemini-2.5-flash",
+                        contents=contents,
+                        config=config
+                    )
+                except Exception as e:
+                    print("Error during Gemini inference:", e)
+                    input("Press Enter to retry...")
+                    continue
+            
+            return response.text
 
 def SceneDescription(obs_images, processor=None, model=None, tokenizer=None, args=None):
     prompt = f"""You are a autonomous driving labeller. You have access to these front-view camera images of a car taken at a 0.5 second interval over the past 5 seconds. Imagine you are driving the car. Describe the driving scene according to traffic lights, movements of other cars or pedestrians and lane markings."""
@@ -264,6 +282,12 @@ if __name__ == '__main__':
                     device_map="auto"
                 )
                 processor = AutoProcessor.from_pretrained("/root/OpenEMMA/models/Qwen2.5-VL-3B-Instruct")
+
+                # model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                #     "Qwen/Qwen2.5-VL-3B-Instruct-AWQ", torch_dtype="auto", device_map="auto", attn_implementation="flash_attention_2"
+                # )
+                # processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct-AWQ")
+                
                 tokenizer = None
                 qwen25_loaded = True
                 print("已本地加载 Qwen2.5-VL-3B-Instruct 并启用 flash attention。")

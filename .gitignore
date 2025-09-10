@@ -18,3 +18,6 @@ env/
 
 # Project specific
 gpt_results/
+qwen_results/
+
+datasets/
