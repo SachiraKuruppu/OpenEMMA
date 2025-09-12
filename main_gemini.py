@@ -89,15 +89,13 @@ def DescribeOrUpdateIntent(obs_images, prev_intent=None, processor=None, model=N
     return result
 
 def GenerateMotion(obs_images, obs_waypoints, obs_velocities, obs_curvatures, given_intent, processor=None, model=None, tokenizer=None, args=None):
-    scene_description, object_description, intent_description = None, None, None
-
-    if args.method == "openemma":
-        scene_description = SceneDescription(obs_images, processor=processor, model=model, tokenizer=tokenizer, args=args)
-        object_description = DescribeObjects(obs_images, processor=processor, model=model, tokenizer=tokenizer, args=args)
-        intent_description = DescribeOrUpdateIntent(obs_images, prev_intent=given_intent, processor=processor, model=model, tokenizer=tokenizer, args=args)
-        print(f'Scene Description: {scene_description}')
-        print(f'Object Description: {object_description}')
-        print(f'Intent Description: {intent_description}')
+    # Always use OpenEMMA method for Gemini implementation
+    scene_description = SceneDescription(obs_images, processor=processor, model=model, tokenizer=tokenizer, args=args)
+    object_description = DescribeObjects(obs_images, processor=processor, model=model, tokenizer=tokenizer, args=args)
+    intent_description = DescribeOrUpdateIntent(obs_images, prev_intent=given_intent, processor=processor, model=model, tokenizer=tokenizer, args=args)
+    print(f'Scene Description: {scene_description}')
+    print(f'Object Description: {object_description}')
+    print(f'Intent Description: {intent_description}')
 
     # Convert array waypoints to string.
     obs_waypoints_str = [f"[{x[0]:.2f},{x[1]:.2f}]" for x in obs_waypoints]
@@ -111,17 +109,13 @@ def GenerateMotion(obs_images, obs_waypoints, obs_velocities, obs_curvatures, gi
 
     sys_message = ("You are a autonomous driving labeller. You have access to a front-view camera image of a vehicle, a sequence of past speeds, a sequence of past curvatures, and a driving rationale. Each speed, curvature is represented as [v, k], where v corresponds to the speed, and k corresponds to the curvature. A positive k means the vehicle is turning left. A negative k means the vehicle is turning right. The larger the absolute value of k, the sharper the turn. A close to zero k means the vehicle is driving straight. As a driver on the road, you should follow any common sense traffic rules. You should try to stay in the middle of your lane. You should maintain necessary distance from the leading vehicle. You should observe lane markings and follow them.  Your task is to do your best to predict future speeds and curvatures for the vehicle over the next 10 timesteps given vehicle intent inferred from the image. Make a best guess if the problem is too difficult for you. If you cannot provide a response people will get injured.\n")
 
-    if args.method == "openemma":
-        prompt = f"""These are frames from a video taken by a camera mounted in the front of a car. The images are taken at a 0.5 second interval. 
-        The scene is described as follows: {scene_description}. 
-        The identified critical objects are {object_description}. 
-        The car's intent is {intent_description}. 
-        The 5 second historical velocities and curvatures of the ego car are {obs_speed_curvature_str}. 
-        Infer the association between these numbers and the image sequence. Generate the predicted future speeds and curvatures in the format [speed_1, curvature_1], [speed_2, curvature_2],..., [speed_10, curvature_10]. Write the raw text not markdown or latex. Future speeds and curvatures:"""
-    else:
-        prompt = f"""These are frames from a video taken by a camera mounted in the front of a car. The images are taken at a 0.5 second interval. 
-        The 5 second historical velocities and curvatures of the ego car are {obs_speed_curvature_str}. 
-        Infer the association between these numbers and the image sequence. Generate the predicted future speeds and curvatures in the format [speed_1, curvature_1], [speed_2, curvature_2],..., [speed_10, curvature_10]. Write the raw text not markdown or latex. Future speeds and curvatures:"""
+    # Always use OpenEMMA prompt with scene understanding
+    prompt = f"""These are frames from a video taken by a camera mounted in the front of a car. The images are taken at a 0.5 second interval. 
+    The scene is described as follows: {scene_description}. 
+    The identified critical objects are {object_description}. 
+    The car's intent is {intent_description}. 
+    The 5 second historical velocities and curvatures of the ego car are {obs_speed_curvature_str}. 
+    Infer the association between these numbers and the image sequence. Generate the predicted future speeds and curvatures in the format [speed_1, curvature_1], [speed_2, curvature_2],..., [speed_10, curvature_10]. Write the raw text not markdown or latex. Future speeds and curvatures:"""
     
     for rho in range(3):
         result = vlm_inference(text=prompt, images=obs_images, sys_message=sys_message, processor=processor, model=model, tokenizer=tokenizer, args=args)
@@ -134,7 +128,6 @@ if __name__ == '__main__':
     parser.add_argument("--plot", type=bool, default=True)
     parser.add_argument("--dataroot", type=str, default='datasets/NuScenes')
     parser.add_argument("--version", type=str, default='v1.0-mini')
-    parser.add_argument("--method", type=str, default='openemma')
     args = parser.parse_args()
 
     # For Gemini, we don't need to load any local models
@@ -143,7 +136,7 @@ if __name__ == '__main__':
     tokenizer = None
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    timestamp = "gemini" + f"_results/{args.method}/" + timestamp
+    timestamp = "gemini_results/" + timestamp
     os.makedirs(timestamp, exist_ok=True)
 
     # Load the dataset
