@@ -19,5 +19,6 @@ env/
 # Project specific
 gpt_results/
 qwen_results/
+gemini_results/
 
 datasets/
